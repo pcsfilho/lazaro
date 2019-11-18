@@ -1,16 +1,15 @@
 import vrep
 
-class Map(object):
+class Simulation(object):
     
-    def __init__(self, x,y,z):
+    def __init__(self):
         vrep.simxFinish(-1) # close all opened connections
         self.clientID = None
-        self.x = x
-        self.y = y 
-        self.z = z
+        self.was_found = False
         
     def start_connection(self, server, port):
         self.clientID = vrep.simxStart(server, port, True, True,5000,5) # start a connection
+        return self.clientID
     
     def stop_connection(self):
         vrep.simxFinish(self.clientID) # closing server connection
