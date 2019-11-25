@@ -3,7 +3,7 @@ import time
 import numpy
 import math
 from helper import Simulation
-from robotnik import Robotnik
+from robotnik3 import Robotnik
 
 if __name__ == "__main__":
     server = '127.0.0.1'
@@ -20,8 +20,9 @@ if __name__ == "__main__":
         # vrep.simxStartSimulation(client_id, vrep.simx_opmode_blocking)
         
         robotnik = Robotnik(sim) #init robotnik
-        robotnik.create_proximity_sensors() #initializing quadcopter proximity sensors
-        time.sleep(0.2)
+        robotnik.create_proximity_sensors() #initializing robotnik proximity sensors
+        robotnik.create_vision_sensor() #initializing robotnik proximity vision sensor
+        time.sleep(0.02)
         
         robotnik.make_trajectory()
     else:

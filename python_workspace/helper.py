@@ -19,31 +19,23 @@ class Simulation(object):
     
     #Return the position of some object in the map
     def get_position(self, obj, mode = vrep.simx_opmode_buffer):
-        err_code, pos = vrep.simxGetObjectPosition(self.clientID,obj,-1,vrep.simx_opmode_streaming)
+        err_code, pos = vrep.simxGetObjectPosition(self.clientID,obj,-1,mode)
         return pos
 
-class Node(object):
+class SensorVision(object):
     
-    def __init__(self, x,y):
-        self.x = x
-        self.y = y
-        self.visited = False
-        # self.neighbor_left = None
-        # self.neighbor_right = None
-    
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.x == other.x and self.y == other.y
-        return False
-
-    def __ne__(self, other):
-        """Override the default Unequal behavior"""
-        return self.x != other.x or self.size != other.y
+    def __init__(self, clientID):
+        self.clientID = clientID
+        self.vision_sensor = vrep.simxGetObjectHandle(self.clientID,"vs", vrep.simx_opmode_blocking)[1]
+        self.resolution  = None
+        self.image = None
+        
+    def init_sensor(self):
+        vrep.simxGetVisionSensorImage(self.clientID,self.vision_sensor, 0, vrep.simx_opmode_streaming)
     
     @property
-    def is_visited(self):
-        self.is_visited
-    
-    def __str__(self):
-        return f'x[{self.x}] y[{self.y}] []'
-
+    def get_image(self):
+        err_code, res, image = vrep.simxGetVisionSensorImage(
+            self.clientID, self.vision_sensor, 0, vrep.simx_opmode_buffer
+        )
+        return image
