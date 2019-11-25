@@ -22,8 +22,8 @@ class Robotnik(object):
         self.cam = vrep.simxGetObjectHandle(self.simulation.clientID,'Robotnik_frontCamera', vrep.simx_opmode_blocking)[1]
         vrep.simxGetObjectPosition(self.simulation.clientID,self.cam,-1,vrep.simx_opmode_streaming)
         vrep.simxGetObjectOrientation(self.simulation.clientID,self.cam,-1,vrep.simx_opmode_streaming)
-        self.f_vel = 3.5 # max velocity to foward movement
-        self.t_vel = 1 # max velocity to turn
+        self.f_vel = 3.7 # max velocity to foward movement
+        self.t_vel = 1.2 # max velocity to turn
         
         self.joint_front_left = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_front_left_wheel", vrep.simx_opmode_blocking)[1]
         self.joint_front_right = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_front_right_wheel", vrep.simx_opmode_blocking)[1]
@@ -86,7 +86,7 @@ class Robotnik(object):
           distance_current = distance(pose_start[0]-value, pose[0])
         
         if distance_current < 0.1 or self.was_found or self.get_proximity_sensor_1:
-          time.sleep(0.02)
+          time.sleep(0.005)
           self.stop()
           break
     
@@ -99,32 +99,35 @@ class Robotnik(object):
       while 1:
         self.object_was_found() #update if found goal
         if self.was_found:
-          time.sleep(0.02)
+          time.sleep(0.01)
           self.stop()
           print('GOAL FOUND')
           break
         
         #test if can turn to the right
         if (not self.get_proximity_sensor_3):
-          self.foward_more(0.3)
+          self.foward_more(0.32)
           self.set_right()
           if not self.get_proximity_sensor_1:
             self.foward_more(1.2)
             if not self.proximity_sensor_3:
               self.set_right()
-              self.foward_more(1.5)
+              self.foward_more(1.3)
         #test if can keep moving forward
         elif (not self.get_proximity_sensor_1):
           self.set_foward()
         #test if can turn to the left
         elif (not self.get_proximity_sensor_2):
-          self.foward_more(0.25)
+          if not self.get_proximity_sensor_1:
+            self.foward_more(0.32)
+          time.sleep(0.001)
+          self.stop()
           self.set_left()
         #test if need turn back
         elif (self.get_proximity_sensor_1
             or self.get_proximity_sensor_2
             or self.get_proximity_sensor_3):
-          for i in range(2):  
+          for i in range(2):
             self.set_left()
  
     
