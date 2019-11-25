@@ -6,8 +6,6 @@ class Simulation(object):
     def __init__(self):
         vrep.simxFinish(-1) # close all opened connections
         self.clientID = None
-        self.was_found = False
-        
         
     def start_connection(self, server, port):
         self.clientID = vrep.simxStart(server, port, True, True,5000,5) # start a connection

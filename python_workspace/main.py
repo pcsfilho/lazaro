@@ -3,7 +3,7 @@ import time
 import numpy
 import math
 from helper import Simulation
-from robotnik3 import Robotnik
+from robotnik import Robotnik
 
 if __name__ == "__main__":
     server = '127.0.0.1'

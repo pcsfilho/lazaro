@@ -2,16 +2,17 @@ import vrep
 import time
 import math
 
-from helper import Node
-from util import Stack
+from util import distance
+from helper import SensorVision
 '''
 This class is responsible for controlling the robotnik instantiated in the v-rep simulation,
 which aims to find a black cube on a map.
 '''
 class Robotnik(object):
-    
     def __init__(self, simulation):
-        self.simulation = simulation
+        self.simulation = simulation #simulation object
+        self.ref_obj = 1 #goal reference filter
+        self.was_found = False #found goal
         self.robotnik = vrep.simxGetObjectHandle(self.simulation.clientID,'Summit_XL_visible', vrep.simx_opmode_blocking)[1]
         self.goal = vrep.simxGetObjectHandle(self.simulation.clientID,'Goal', vrep.simx_opmode_blocking)[1]
         vrep.simxGetObjectPosition(self.simulation.clientID,self.goal,-1,vrep.simx_opmode_streaming)
@@ -19,26 +20,25 @@ class Robotnik(object):
         vrep.simxGetObjectOrientation(self.simulation.clientID,self.robotnik,-1,vrep.simx_opmode_streaming)
         
         self.cam = vrep.simxGetObjectHandle(self.simulation.clientID,'Robotnik_frontCamera', vrep.simx_opmode_blocking)[1]
-        self.max_vel = 1
+        vrep.simxGetObjectPosition(self.simulation.clientID,self.cam,-1,vrep.simx_opmode_streaming)
+        vrep.simxGetObjectOrientation(self.simulation.clientID,self.cam,-1,vrep.simx_opmode_streaming)
+        self.f_vel = 3.5 # max velocity to foward movement
+        self.t_vel = 1 # max velocity to turn
         
         self.joint_front_left = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_front_left_wheel", vrep.simx_opmode_blocking)[1]
         self.joint_front_right = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_front_right_wheel", vrep.simx_opmode_blocking)[1]
         self.joint_back_right = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_back_right_wheel", vrep.simx_opmode_blocking)[1]
         self.joint_back_left = vrep.simxGetObjectHandle(self.simulation.clientID,"joint_back_left_wheel", vrep.simx_opmode_blocking)[1]
 
-        self.bar_fl_joint = vrep.simxGetObjectHandle(self.simulation.clientID,"bar_fl_joint", vrep.simx_opmode_blocking)[1]
-        self.bar_fr_joint = vrep.simxGetObjectHandle(self.simulation.clientID,"bar_fr_joint", vrep.simx_opmode_blocking)[1]
-        self.bar_br_joint = vrep.simxGetObjectHandle(self.simulation.clientID,"bar_br_joint", vrep.simx_opmode_blocking)[1]
-        self.bar_bl_joint = vrep.simxGetObjectHandle(self.simulation.clientID,"bar_bl_joint", vrep.simx_opmode_blocking)[1]
-        
         self.proximity_sensor_1 = None
         self.proximity_sensor_2 = None
         self.proximity_sensor_3 = None
-        self.visiteds = Stack()
-        self.current = 'F'   
+        self.sensor_vision = None
 
+    '''
+    Instantiating proximity sensors
+    '''
     def create_proximity_sensors(self):
-        
         self.proximity_sensor_1 = vrep.simxGetObjectHandle(self.simulation.clientID,"s1", vrep.simx_opmode_blocking)[1]
         self.proximity_sensor_2 = vrep.simxGetObjectHandle(self.simulation.clientID,"s2", vrep.simx_opmode_blocking)[1]
         self.proximity_sensor_3 = vrep.simxGetObjectHandle(self.simulation.clientID,"s3", vrep.simx_opmode_blocking)[1]
@@ -48,85 +48,178 @@ class Robotnik(object):
         vrep.simxReadProximitySensor(self.simulation.clientID, self.proximity_sensor_2, vrep.simx_opmode_streaming)
         vrep.simxReadProximitySensor(self.simulation.clientID, self.proximity_sensor_3, vrep.simx_opmode_streaming)
     
-    def update_sensor(self, sensor):
-        err_code, state, value, detectedObjectHandle, detectedSurfaceNormalVector = vrep.simxReadProximitySensor(
-            self.simulation.clientID, sensor, vrep.simx_opmode_buffer
-        )
-        return state
+    '''
+    Create robotnik sensor vision
+    '''
+    def create_vision_sensor(self):
+        self.sensor_vision = SensorVision(self.simulation.clientID)
+        time.sleep(0.01)
+        self.sensor_vision.init_sensor()
     
-    def make_trajectory(self):
-        while not self.simulation.was_found:
-            self.set_foward()
-            if self.get_proximity_sensor_1:
-                self.set_right()
-                self.stop()
-                time.sleep(0.5)
-                self.set_right()
-                self.stop()
-                time.sleep(0.5)
-                self.set_right()
-                self.stop()
-                time.sleep(0.5)
-                self.set_right()
-                self.stop()
-                time.sleep(0.5)
-            
-                
-                
-    def closest(self, turn):
-        angles = [0, math.pi, -(math.pi/2), -(math.pi), math.pi/2]
-        res = angles[min(range(len(angles)), key = lambda i: abs(angles[i]-self.orientation[2]))]
+    '''
+    Test if reference color object inside image
+    '''
+    def object_was_found(self):
+      self.was_found = self.ref_obj in self.sensor_vision.get_image
+    
+    '''
+    Set foward movement to point value
+    '''
+    def foward_more(self, value):
+      self.set_foward()
+      pose_start = self.position
+      side = self.side()
+      
+      while 1:
+        self.object_was_found()
+        pose = self.position
+        if side == 0: #left map
+          distance_current = distance(pose_start[0]+value, pose[0])
+        
+        elif side == -math.pi/2: #up map
+          distance_current = distance(pose_start[1]-value, pose[1])
+        
+        elif side == math.pi/2: #down map
+          distance_current = distance(pose_start[1]+value, pose[1])
+        
+        else: #right map
+          distance_current = distance(pose_start[0]-value, pose[0])
+        
+        if distance_current < 0.1 or self.was_found or self.get_proximity_sensor_1:
+          time.sleep(0.02)
+          self.stop()
+          break
+    
+    '''
+    Make search trajectory
+    '''
+    def make_trajectory(self):    
+      goal_postion = self.simulation.get_position(self.goal)
+      
+      while 1:
+        self.object_was_found() #update if found goal
+        if self.was_found:
+          time.sleep(0.02)
+          self.stop()
+          print('GOAL FOUND')
+          break
+        
+        #test if can turn to the right
+        if (not self.get_proximity_sensor_3):
+          self.foward_more(0.3)
+          self.set_right()
+          if not self.get_proximity_sensor_1:
+            self.foward_more(1.2)
+            if not self.proximity_sensor_3:
+              self.set_right()
+              self.foward_more(1.5)
+        #test if can keep moving forward
+        elif (not self.get_proximity_sensor_1):
+          self.set_foward()
+        #test if can turn to the left
+        elif (not self.get_proximity_sensor_2):
+          self.foward_more(0.25)
+          self.set_left()
+        #test if need turn back
+        elif (self.get_proximity_sensor_1
+            or self.get_proximity_sensor_2
+            or self.get_proximity_sensor_3):
+          for i in range(2):  
+            self.set_left()
+ 
+    
+    '''
+    Tests if goal was found
+    '''   
+    def find_goal(self, goal_position):
+      pose = self.position
+      if distance(goal_position[0], goal_position[1],  pose[0], pose[1]) < 0.5:
+        print('GOAL FOUND')
+        time.sleep(0.002)
+        self.stop()
+        return True
+
+      return False
+    
+    '''
+    Check the current side of the robot and return the degree of rotation
+    '''
+    def max_value_to_turn(self, turn):
+        res = self.side()
         if turn == 'L':
             if res == math.pi:
                 res = - math.pi
             
             return res + math.pi/2
         
-        if res == -math.pi:
-            res = math.pi
-        print('res ', res)
-        return res - math.pi/2
-                        
+        if turn == 'R':
+            if res == -math.pi:
+                res = math.pi
+            
+            return res - math.pi/2
     
+    '''
+    Check the current orientation and return the radian side
+    '''                    
+    def side(self):
+        angles = [0, math.pi, -(math.pi/2), math.pi/2, -(math.pi)]
+        return angles[min(range(len(angles)), key = lambda i: abs(angles[i]-self.orientation[2]))]
+        
+    '''
+    Sets the target velocity to the joints
+    '''
     def set_direction(self, velocities):
         vrep.simxSetJointTargetVelocity(self.simulation.clientID, self.joint_front_left, velocities[0], vrep.simx_opmode_oneshot)
         vrep.simxSetJointTargetVelocity(self.simulation.clientID, self.joint_front_right, velocities[1], vrep.simx_opmode_oneshot)
         vrep.simxSetJointTargetVelocity(self.simulation.clientID, self.joint_back_right, velocities[2], vrep.simx_opmode_oneshot)
         vrep.simxSetJointTargetVelocity(self.simulation.clientID, self.joint_back_left, velocities[3], vrep.simx_opmode_oneshot)
-         
-    '''
-    Forward movement with the proximity_sensor_1 as reference
-    '''
-    def set_foward(self):
-        self.set_direction([self.max_vel, -self.max_vel, -self.max_vel, self.max_vel])
-        self.test_trajectory()
     
     '''
-    Forward movement with the proximity_sensor_1 as reference
+    Forward movement
     '''
-    def set_back(self):
-        self.set_direction([-self.max_vel, self.max_vel, self.max_vel, -self.max_vel])
-        self.test_trajectory()   
+    def set_foward(self):
+        self.set_direction([self.f_vel, -self.f_vel, -self.f_vel, self.f_vel])
+
     '''
     Right move
     '''
     def set_right(self):
-        self.set_direction([self.max_vel, self.max_vel, self.max_vel, self.max_vel])
-        close = self.closest('R')
-        print('close: ', close)
+        self.set_direction([self.t_vel, self.t_vel, self.t_vel, self.t_vel])
+        side = self.max_value_to_turn('R')
         while 1:
-            if(self.orientation[2] <= (close + (math.pi/90))):
-                break
-        
+          theta = self.orientation[2]
+          if ((distance(theta, side) <= 0.025) or
+            (side == -math.pi/2 and theta <= side) or
+            (side == -math.pi and theta >= 0) or
+            (side == math.pi and theta >= 0 and theta < side) or
+            (side == math.pi/2 and theta <= side) or
+            (side == 0 and theta < side) or 
+            self.was_found
+          ):
+            self.stop()
+            time.sleep(0.005)
+            break
+
     '''
     Left move
     '''
     def set_left(self):
-        self.set_direction([-self.max_vel, -self.max_vel, -self.max_vel, -self.max_vel])
-        close = self.closest('L')
-        while 1:
-            if(self.orientation[2] >= (close - (math.pi/180))):
-                break
+      self.set_direction([-self.t_vel, -self.t_vel, -self.t_vel, -self.t_vel])
+      side = self.max_value_to_turn('L')
+      while 1:
+        self.object_was_found()
+        theta = self.orientation[2]
+        if ((distance(theta, side) <= 0.025) or
+          (side == math.pi/2 and theta >= side) or
+          (side == math.pi and theta <= 0) or
+          (side == -math.pi and theta >= -math.pi) or
+          (side == -math.pi/2 and theta >= -math.pi/2) or
+          (side == 0 and theta >= side) or 
+          self.was_found
+        ):
+          break
+          self.stop()
+          time.sleep(0.005)
                 
         
     '''
@@ -134,42 +227,7 @@ class Robotnik(object):
     '''
     def stop(self):
         self.set_direction([0,0,0,0])
-    
-    def get_euler_position(self, degrees):
         
-        res,retInts,e,retStrings,retBuffer=vrep.simxCallScriptFunction(
-            self.simulation.clientID,
-            'Robotnik_frontCamera',
-            vrep.sim_scripttype_childscript,
-            'getObjectPose',
-            [self.cam, degrees],
-            [],
-            [],
-            bytearray(),
-            vrep.simx_opmode_oneshot_wait
-        )
-        
-        return e[2]
-    
-    
-    '''
-    Testing if there is any collision and start fix
-    '''
-    def test_trajectory(self):
-        time.sleep(0.02)
-        if self.get_proximity_sensor_1:
-            pass
-        
-        elif self.get_proximity_sensor_2:
-            pass
-            
-        elif self.get_proximity_sensor_3:
-            pass
-        
-     
-    def fix_trajectory(self, buffer = bytearray()):
-        pass    
-    
     @property
     def position(self):
         err_code, position = vrep.simxGetObjectPosition(self.simulation.clientID,self.robotnik,-1,vrep.simx_opmode_buffer)
@@ -192,7 +250,6 @@ class Robotnik(object):
         err_code, state, value, detectedObjectHandle, detectedSurfaceNormalVector = vrep.simxReadProximitySensor(
             self.simulation.clientID, self.proximity_sensor_2, vrep.simx_opmode_buffer
         )
-        
         return state
     
     @property
@@ -200,13 +257,13 @@ class Robotnik(object):
         err_code, state, value, detectedObjectHandle, detectedSurfaceNormalVector = vrep.simxReadProximitySensor(
             self.simulation.clientID, self.proximity_sensor_3, vrep.simx_opmode_buffer
         )
-        
         return state
     
-    def robot_pose_get(self):
+    @property
+    def pose(self):
         xyz = self.position
         eulerAngles = self.orientation
         x, y, z = xyz
         theta = eulerAngles[2]
         
-        return (x, y, theta)
+        return [x, y, theta]
