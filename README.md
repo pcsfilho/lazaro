@@ -66,19 +66,12 @@ This project was based on
     on wall algorithm can be simplified into these simple conditions:
 -  If you can turn right then go ahead and turn right:
 
-![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/left_back.png)
-
 - else if you can continue driving straight then drive straight:
-
-![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/left.png)
 
 - else if you can turn left then turn left:
 
-![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/right.png)
-
 - If you are at a dead end then turn around:
 
-![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/back.png)
 
     For this project defined the following settings for the vision sensor robotnik:
 
