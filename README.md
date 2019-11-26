@@ -61,11 +61,26 @@ This project was based on
 - [Forum](http://www.forum.coppeliarobotics.com)
 
 ## Project decisions
-    - For this project defined the following settings for the vision sensor robotnik:
+    To perform the search of the black cube on the map, the technique called right-hand rule was used.
+    This was made possible because the map structure looks like a maze without loops. This left hand 
+    on wall algorithm can be simplified into these simple conditions:
+    - If you can turn right then go ahead and turn right:
+        ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/left_back.png)
+
+    - else if you can continue driving straight then drive straight:
+        ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/left.png)
+
+    - else if you can turn left then turn left:
+        ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/right.png)
+
+    - If you are at a dead end then turn around:
+        ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/back.png)
+
+    For this project defined the following settings for the vision sensor robotnik:
 
 ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/pespective.png)
 
-    - Just like a color selection filter for cube visualization in simulation:
+    Just like a color selection filter for cube visualization in simulation:
 
 ![Optional Text](https://github.com/pcsfilho/lazaro/blob/master/img/filter.png)
 
